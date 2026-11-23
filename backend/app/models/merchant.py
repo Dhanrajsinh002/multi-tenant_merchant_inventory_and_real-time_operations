@@ -1,14 +1,14 @@
 from datetime import datetime
 from sqlalchemy import Column, DateTime, Integer, String
-from sqlalchemy.orn import relationship
+from sqlalchemy.orm import relationship
 from app.db.base import Base
 
 class Merchant(Base):
-    __tablename__ = "merchnat"
+    __tablename__ = "merchants"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
-    slug = Column(String(2550), unique=true, index=True, nullable=False)
+    slug = Column(String(2550), unique=True, index=True, nullable=False)
     status = Column(String(255), default="ACTIVE", nullable=False)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
 

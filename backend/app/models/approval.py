@@ -32,5 +32,5 @@ class StockApprovalRequest(Base):
     __table_args__ = (
         # Required Composite Index: (merchant_id, status)
         # Specially requested for fast filtering requests
-        Index("ix_approvals_merchant_status", "merchant_id", "status")
+        Index("ix_approvals_merchant_status", "merchant_id", "status"),
     )

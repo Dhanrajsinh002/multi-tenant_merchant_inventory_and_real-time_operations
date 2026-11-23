@@ -26,19 +26,26 @@ class CacheService:
     def products_key(merchant_id: int) -> str:
         return f"merchant:{merchant_id}:products:default"
 
-    async def get_json(self, key: str) -> Optional[Any]:
+    async def set_json(self, key: str, value: Any, ttl_seconds: int = 300) -> bool:
+        """Store JSON payload in Redis with TTL (SETEX)."""
+        try:
+            serialized = json.dumps(value)
+            await self.redis.setex(key, ttl_seconds, serialized)
+            return True
+        except (RedisError, Exception) as exc:
+            logger.warning(f"[Cache Degradation] Redis SET failed for key '{key}': {exc}.")
+            return False
+    async def invalidate_merchant_cache(self, merchant_id: int) -> None:
         """
-        Attempt to fetch from Redis.
-        If Redis is down, catches error and returns None (Graceful Degradation).
+        Explicit Invalidation: Removes cached catalog and dashboard metrics
+        whenever product data or stock approvals change.
         """
         try:
-            data = await self.redis.get(key)
-            if data:
-                return json.loads(data)
-            return None
+            keys_to_delete = [
+                self.dashboard_key(merchant_id),
+                self.products_key(merchant_id)
+            ]
+            await self.redis.delete(*keys_to_delete)
+            logger.info(f"Explicitly invalidated cache for merchant {merchant_id}.")
         except (RedisError, Exception) as exc:
-            logger.warning(f"[Cache Degradation] Redis GET failed for key '{key}': {exc}. Falling back to PostgreSQL.")
-            return None
-
-    async def set_json(self, key: str, value: Any, ttl_seconds: int = 300) -> bool:
-        """Store
+            logger.warning(f"[Cache Degradation] Invalidation failed for merchant {merchant_id}: {exc}.")
