@@ -21,12 +21,19 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         const errorData = error.response?.data
+        if (errorData?.message) {
+            return Promise.reject(errorData)
+        }
         if (errorData?.detail) {
-            return Promise.reject(errorData.detail)
+            return Promise.reject(
+                typeof errorData.detail === 'string'
+                    ? { message: errorData.detail, error_code: 'ERROR' }
+                    : errorData.detail
+            )
         }
         return Promise.reject({
             error_code: 'NETWORK_ERROR',
-            message: error.message || 'Netowrk request failed',
+            message: error.message || 'Network request failed',
         })
     }
 )

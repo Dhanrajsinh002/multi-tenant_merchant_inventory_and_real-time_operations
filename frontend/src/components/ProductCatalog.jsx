@@ -122,6 +122,7 @@ export default function ProductCatalog({ user }) {
     } catch (err) {
       setBulkStatus({
         type: 'error',
+        error_code: err.error_code,
         message: err.message || 'Bulk transaction failed and was rolled back.',
       })
     }
@@ -399,7 +400,7 @@ export default function ProductCatalog({ user }) {
   
             {bulkStatus && (
               <div
-                className={`p-3 rounded-lg text-xs mb-4 ${
+                className={`p-3 rounded-lg text-xs mb-4 flex items-start space-x-2 ${
                   bulkStatus.type === 'error'
                     ? 'bg-rose-50 text-rose-700 border border-rose-200'
                     : bulkStatus.type === 'success'
@@ -407,7 +408,10 @@ export default function ProductCatalog({ user }) {
                     : 'bg-indigo-50 text-indigo-700'
                 }`}
               >
-                {bulkStatus.message}
+                <span>
+                  {bulkStatus.error_code && <strong className="mr-1.5">[{bulkStatus.error_code}]</strong>}
+                  {bulkStatus.message}
+                </span>
               </div>
             )}
   
