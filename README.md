@@ -1,4 +1,4 @@
-# CleanDesk AI: Multi-Tenant Merchant Inventory & Real-Time Operations Platform
+# Multi-Tenant Merchant Inventory & Real-Time Operations Platform
 
 A full-stack, backend-heavy merchant inventory and order-approval application engineered for strict tenant isolation, Redis cache-aside optimization, atomic sliding-window rate limiting, and real-time multi-user WebSocket broadcasting.
 
