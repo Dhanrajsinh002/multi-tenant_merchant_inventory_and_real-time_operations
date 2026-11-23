@@ -19,7 +19,8 @@ security = HTTPBearer(auto_error=False)
 redis_client = aioredis.from_url(
     settings.REDIS_URL,
     decode_responses=True,
-    socket_connect_timeout=2.0
+    socket_connect_timeout=2.0,
+    protocol=2
 )
 
 
