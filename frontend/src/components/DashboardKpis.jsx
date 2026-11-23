@@ -2,6 +2,35 @@ import React, { useEffect, useState } from 'react'
 import api from '../services/api'
 import { Package, DollarSign, AlertTriangle, Clock, RefreshCw, Zap, Bell, CheckCircle2 } from 'lucide-react'
 
+function formatEventMessage(event, data) {
+  if (!data) return 'Event processed.'
+  if (typeof data === 'string') return data
+  if (data.message) return data.message
+
+  switch (event) {
+    case 'LOW_STOCK_ALERT':
+      return `Critical low stock for SKU ${data.sku || '#' + (data.product_id || '')} (${data.stock_quantity ?? 0} units remaining)`
+
+    case 'STOCK_UPDATED':
+      if (data.name) {
+        return `Product "${data.name}" (${data.sku}) updated to ${data.stock_quantity} units @ $${Number(data.unit_price).toFixed(2)}`
+      }
+      if (data.sku) {
+        return `Stock updated for SKU ${data.sku} (${data.stock_quantity ?? ''} units)`
+      }
+      return 'Inventory stock state updated.'
+
+    case 'APPROVAL_CREATED':
+      return `Adjustment request #${data.id} submitted for ${data.product_name || data.product_sku || 'Product'} (${data.quantity_delta > 0 ? '+' : ''}${data.quantity_delta} units): "${data.reason}"`
+
+    case 'APPROVAL_RESOLVED':
+      return `Adjustment request #${data.id} was ${data.status} for ${data.product_name || data.product_sku || 'Product'}`
+
+    default:
+      return typeof data === 'object' ? Object.values(data).filter(v => typeof v !== 'object').join(' • ') : String(data)
+  }
+}
+
 export default function DashboardKpis({ lastWsEvent }) {
   const [metrics, setMetrics] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -26,15 +55,27 @@ export default function DashboardKpis({ lastWsEvent }) {
   // React to incoming WebSocket events
   useEffect(() => {
     if (!lastWsEvent) return
+    if (['CONNECTION_STATUS', 'CONNECTED'].includes(lastWsEvent.event)) return
 
-    // Add to live notification feed
+    // Add to live notification feed with deduplication
     const newNotif = {
-      id: Date.now(),
+      id: Date.now() + Math.random(),
       timestamp: new Date().toLocaleTimeString(),
       event: lastWsEvent.event,
       data: lastWsEvent.data,
     }
-    setNotifications((prev) => [newNotif, ...prev.slice(0, 19)]) // Keep last 20
+
+    setNotifications((prev) => {
+      // Avoid duplicate display of identical consecutive events
+      if (
+        prev.length > 0 &&
+        prev[0].event === lastWsEvent.event &&
+        JSON.stringify(prev[0].data) === JSON.stringify(lastWsEvent.data)
+      ) {
+        return prev
+      }
+      return [newNotif, ...prev.slice(0, 19)]
+    })
 
     // Re-fetch metrics whenever inventory or approvals change
     if (['STOCK_UPDATED', 'APPROVAL_CREATED', 'APPROVAL_RESOLVED', 'LOW_STOCK_ALERT'].includes(lastWsEvent.event)) {
@@ -175,7 +216,7 @@ export default function DashboardKpis({ lastWsEvent }) {
                     {n.event}
                   </span>
                   <span className="text-slate-700 font-medium">
-                    {JSON.stringify(n.data)}
+                    {formatEventMessage(n.event, n.data)}
                   </span>
                 </div>
                 <span className="text-slate-400 shrink-0 ml-4 font-mono">{n.timestamp}</span>

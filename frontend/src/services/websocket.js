@@ -9,6 +9,16 @@ class TenantWebSocketService {
   connect(token) {
     if (!token) return
 
+    // Prevent duplicate connection if already connected or connecting
+    if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
+      return
+    }
+
+    if (this.socket) {
+      try { this.socket.close() } catch (e) {}
+      this.socket = null
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = `${protocol}//${window.location.host}/ws/merchant?token=${token}`
 
@@ -80,7 +90,8 @@ class TenantWebSocketService {
   disconnect() {
     this.cleanup()
     if (this.socket) {
-      this.socket.close()
+      this.socket.onclose = null
+      try { this.socket.close() } catch (e) {}
       this.socket = null
     }
   }

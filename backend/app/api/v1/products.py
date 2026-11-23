@@ -1,7 +1,7 @@
 import csv
 import io
 from typing import List, Optional
-from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -220,21 +220,29 @@ async def update_product(
 
 @router.post("/bulk-update")
 async def bulk_update_products(
-    items: Optional[List[ProductBulkItem]] = None,
-    file: Optional[UploadFile] = File(None),
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     redis_client = Depends(get_redis)
 ):
     """
-    Accepts a JSON array or CSV upload of SKU price/stock updates.
+    Accepts a JSON array, JSON object with 'items', or CSV upload of SKU price/stock updates.
     Processes atomically in a single database transaction.
     Rolls back completely if any single item has invalid/negative values or nonexistent SKU.
     """
     updates_to_process: List[ProductBulkItem] = []
+    content_type = request.headers.get("content-type", "")
 
-    # 1. Parse CSV if provided
-    if file:
+    # 1. Parse CSV if multipart form upload
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        file = form.get("file")
+        if not file:
+            raise CleanDeskException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                error_code=ErrorCode.INVALID_BULK_PAYLOAD,
+                message="No CSV file provided in multipart form upload."
+            )
         content = await file.read()
         decoded = content.decode("utf-8")
         csv_reader = csv.DictReader(io.StringIO(decoded))
@@ -269,22 +277,34 @@ async def bulk_update_products(
 
             updates_to_process.append(ProductBulkItem(sku=sku, unit_price=price, stock_quantity=stock))
 
-    # 2. Or use JSON array
-    elif items:
-        updates_to_process = items
+    # 2. Parse JSON body (list or dict with items)
     else:
-        raise CleanDeskException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            error_code=ErrorCode.INVALID_BULK_PAYLOAD,
-            message="No bulk update payload provided (expected JSON items or CSV file)."
-        )
+        try:
+            body = await request.json()
+        except Exception:
+            raise CleanDeskException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                error_code=ErrorCode.INVALID_BULK_PAYLOAD,
+                message="No bulk update payload provided (expected JSON items or CSV file)."
+            )
 
-    if not updates_to_process:
-        raise CleanDeskException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            error_code=ErrorCode.INVALID_BULK_PAYLOAD,
-            message="Empty bulk update list."
-        )
+        raw_items = body if isinstance(body, list) else body.get("items", []) if isinstance(body, dict) else []
+        if not raw_items:
+            raise CleanDeskException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                error_code=ErrorCode.INVALID_BULK_PAYLOAD,
+                message="No bulk update payload provided (expected JSON items or CSV file)."
+            )
+
+        for item in raw_items:
+            try:
+                updates_to_process.append(ProductBulkItem(**item))
+            except Exception as e:
+                raise CleanDeskException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    error_code=ErrorCode.INVALID_BULK_PAYLOAD,
+                    message=f"Invalid item payload: {str(e)}"
+                )
 
     # 3. ATOMIC TRANSACTION: Process all updates
     # If any single item fails or is negative, the whole batch is rolled back
