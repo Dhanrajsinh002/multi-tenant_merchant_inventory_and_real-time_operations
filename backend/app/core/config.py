@@ -26,12 +26,12 @@ class Settings(BaseSettings):
 
     # JWT
     SECRET_KEY: str = "supersecretkey_change_in_production_cleandesk_2026"
-    ALORITHM: str = "HS256"
+    ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 # 1 day
 
     # Rate limiting
     AUTH_RATE_LIMIT_MAX_ATTEMPTS: int = 5
-    AUTH_RATE_LIMIT_WINDOWN_SECONDS: int = 60
+    AUTH_RATE_LIMIT_WINDOW_SECONDS: int = 60
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

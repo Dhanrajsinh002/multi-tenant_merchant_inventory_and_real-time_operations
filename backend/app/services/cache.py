@@ -26,6 +26,20 @@ class CacheService:
     def products_key(merchant_id: int) -> str:
         return f"merchant:{merchant_id}:products:default"
 
+    async def get_json(self, key: str) -> Optional[Any]:
+        """
+        Attempt to fetch from Redis.
+        If Redis is down, catches error and returns None (Graceful Degradation).
+        """
+        try:
+            data = await self.redis.get(key)
+            if data:
+                return json.loads(data)
+            return None
+        except (RedisError, Exception) as exc:
+            logger.warning(f"[Cache Degradation] Redis GET failed for key '{key}': {exc}. Falling back to PostgreSQL.")
+            return None
+
     async def set_json(self, key: str, value: Any, ttl_seconds: int = 300) -> bool:
         """Store JSON payload in Redis with TTL (SETEX)."""
         try:
